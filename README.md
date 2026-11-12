@@ -38,8 +38,8 @@ Ask your agent: "Run a Moveworks eval on my agent."
 
 Fixes reach you when you refresh the marketplace:
 
-- Claude Code: `/plugin marketplace update moveworks`
-- Codex: `codex plugin marketplace upgrade moveworks`
+- Claude Code: `/plugin marketplace update moveworks-skills`
+- Codex: `codex plugin marketplace upgrade moveworks-skills`
 
 ## Requirements
 
