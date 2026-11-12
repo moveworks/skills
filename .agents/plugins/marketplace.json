@@ -1,0 +1,20 @@
+{
+  "name": "moveworks",
+  "interface": {
+    "displayName": "Moveworks"
+  },
+  "plugins": [
+    {
+      "name": "eval-api",
+      "source": {
+        "source": "local",
+        "path": "./plugins/eval-api"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

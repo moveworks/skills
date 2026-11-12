@@ -1,0 +1,38 @@
+# One test case = one simulated conversation. Many test cases can share a file, separated by ---
+# Required: goal_id, import_data (at least one record), user_agent.user_agent_prompt, graders (at least one llm_as_judge).
+
+goal_id: <UNIQUE-ID>                 # required, unique across the whole run
+# frozen_time: "2026-01-15T09:00:00Z"   # optional: pins "now" for date logic ("this week", "today")
+
+import_data:                         # required: starting records for the simulated systems
+  collections:                       # names must match a simulator's collections exactly (eval.sh catalog)
+    employees:                       # only read through a mocked connector that points at that simulator
+      - id: EMP-001                  # if every connector is as_is, keep one record like this: it's required but unused
+        firstName: <FIRST NAME>
+        lastName: <LAST NAME>
+        email: <EMAIL>
+
+user_agent:                          # required: the simulated employee (an AI plays them)
+  user_agent_prompt: |               # required: who they are, what they want, how to answer follow-ups, when to stop
+    You are an employee at work. <WHAT THEY WANT>. If the assistant asks a clarifying question,
+    answer briefly. Once you have your answer, thank it and end the conversation.
+  user_turns:                        # optional: scripted lines sent first, in order. Leave out for an unscripted user.
+    - utterance: "<THE QUESTION THE USER ASKS>"
+
+graders:                             # required: at least one llm_as_judge
+  - name: answer_quality             # every grader: name (unique in this file) and type; desc is optional
+    type: llm_as_judge
+    high_level_behavior: |           # required for llm_as_judge: one "- " line per check
+      - Correctness: <WHAT A CORRECT ANSWER SAYS>
+      - Grounding: Presents the answer as coming from the source it found, not from memory.
+      - No Fabrication: Does not invent facts, numbers, names or links.
+    # "Category:" prefixes are optional, but if one bullet in any file has one, every bullet in every file needs one.
+  # - name: used_the_right_tool      # optional: the agent must call these tools (any order)
+  #   type: tool_sequence
+  #   expected_sequence: [<TOOL NAME>]
+  # - name: nothing_changed          # optional: read-only SQL on a simulator after the conversation
+  #   type: deterministic
+  #   collections_to_fetch: [employees]
+  #   query: SELECT COUNT(*) FROM employees
+  #   expected_value: 1
+  #   comparison_type: equals        # optional; default equals (also ne, gt, gte, lt, lte)

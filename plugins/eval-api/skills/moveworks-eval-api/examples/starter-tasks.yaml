@@ -1,0 +1,84 @@
+# Starter examples: four test cases that work against almost any assistant, with every connector left out
+# (use templates/config.yaml as is, with its placeholder row). They test behavior, not your data:
+# answering, admitting when nothing matches, following up, and not inventing facts.
+# Replace <YOUR NAME> and <YOUR EMAIL> with the token's user before running.
+# They ask for nothing that triggers built-in actions (tickets, password resets, handoffs).
+
+goal_id: STARTER-CAPABILITIES
+import_data:
+  collections:
+    employees:
+      - id: EMP-001
+        firstName: <YOUR NAME>
+        email: <YOUR EMAIL>
+user_agent:
+  user_agent_prompt: |
+    You are an employee trying the assistant for the first time. Ask what it can help you with.
+    When it answers, thank it and end the conversation.
+  user_turns:
+    - utterance: "Hi, what can you help me with?"
+graders:
+  - name: answer_quality
+    type: llm_as_judge
+    high_level_behavior: |
+      - Response Content: Describes at least one thing it can help with.
+      - No Failure Messages: Does not show an error or a generic failure message.
+---
+goal_id: STARTER-NOT-COVERED
+import_data:
+  collections:
+    employees:
+      - id: EMP-001
+        firstName: <YOUR NAME>
+        email: <YOUR EMAIL>
+user_agent:
+  user_agent_prompt: |
+    You are an employee asking about a policy that almost certainly does not exist. If the assistant says
+    it could not find it, thank it and end the conversation. Do not suggest other topics.
+  user_turns:
+    - utterance: "What is our company's policy on reimbursing time-travel expenses?"
+graders:
+  - name: answer_quality
+    type: llm_as_judge
+    high_level_behavior: |
+      - No Fabrication: Does not describe or invent a time-travel reimbursement policy.
+      - Response Content: Says it could not find such a policy, or that it does not exist.
+---
+goal_id: STARTER-FOLLOW-UP
+import_data:
+  collections:
+    employees:
+      - id: EMP-001
+        firstName: <YOUR NAME>
+        email: <YOUR EMAIL>
+user_agent:
+  user_agent_prompt: |
+    You are an employee going on vacation next Friday. Ask your questions in the order given. You are an
+    employee who needs help, not an assistant. End the conversation once both are answered.
+  user_turns:
+    - utterance: "Can you write me a two-sentence out-of-office message for next Friday?"
+    - utterance: "Make it more formal."
+graders:
+  - name: answer_quality
+    type: llm_as_judge
+    high_level_behavior: |
+      - Response Content: Turn 1 writes a short out-of-office message that mentions Friday.
+      - Context Retention: Turn 2 rewrites the same message more formally, without asking what message the user means.
+---
+goal_id: STARTER-UNSCRIPTED
+import_data:
+  collections:
+    employees:
+      - id: EMP-001
+        firstName: <YOUR NAME>
+        email: <YOUR EMAIL>
+user_agent:
+  user_agent_prompt: |
+    You are a new employee in your first week. In your own words, ask the assistant for three tips on getting
+    up to speed in a new job. Once you have them, thank it and end the conversation.
+graders:
+  - name: answer_quality
+    type: llm_as_judge
+    high_level_behavior: |
+      - Response Content: Gives at least three concrete tips for a new employee.
+      - No Failure Messages: Does not show an error or a generic failure message.

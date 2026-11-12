@@ -1,0 +1,34 @@
+# Eval config: one per run. Sent inline in the POST /rest/v1alpha1/eval_runs body.
+# Fill in every <PLACEHOLDER>. eval.sh refuses to submit while any are left.
+
+title: <A NAME FOR THIS RUN>            # required: the label in reports and run lists
+
+requestor:                               # required: the person the simulated user plays
+  name: <YOUR NAME>                      # use the token's user: conversations run as that user
+  email: <YOUR EMAIL>
+
+scoped_agent_id: <SCOPED AGENT ID>       # required: the agent under test (from its address in your browser,
+                                         # after /assistant/agents/). Moveworks tests a temporary copy.
+
+# platform: hera                         # optional: hera (default) or minerva. Agents with MCP connectors need hera.
+
+connector_map:                           # required: one row per connector the agent calls
+  # mocked: the connector points at a simulator, loaded from each task's import_data
+  # as_is:  the real connector and real system; writes are real, and the run carries a warning
+  # left out (no row): cut off for the run; its calls fail harmlessly
+  #
+  # The API needs at least one row. If every connector should be left out, keep this placeholder row:
+  # it names no real connector, so all of the agent's connectors are cut off.
+  - name: eval-placeholder
+    original_URL: https://placeholder.invalid
+    eval_URL: https://marketplace.moveworks.com/api/purple-suite/hris
+    mode: mocked
+  #
+  # Examples:
+  # - name: <CONNECTOR NAME>
+  #   original_URL: <ITS REAL BASE URL>
+  #   eval_URL: https://marketplace.moveworks.com/api/purple-suite/<app>/<path>
+  #   mode: mocked
+  # - name: <CONNECTOR NAME>
+  #   original_URL: <ITS REAL BASE URL>
+  #   mode: as_is

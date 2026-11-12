@@ -1,0 +1,28 @@
+{
+  "name": "eval-api",
+  "version": "0.1.0",
+  "description": "Run evaluations of your Moveworks agents with the Moveworks Eval API: set up the eval config and test cases, validate with a dry run, start the run, and read the report.",
+  "author": {
+    "name": "Moveworks",
+    "url": "https://www.moveworks.com"
+  },
+  "homepage": "https://docs.moveworks.com/api-reference/alpha-eval-api/overview",
+  "repository": "https://github.com/moveworks/skills",
+  "license": "MIT",
+  "keywords": ["moveworks", "eval", "evaluation", "agents", "api"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Moveworks Eval API",
+    "shortDescription": "Evaluate your Moveworks agents with the Eval API",
+    "longDescription": "A guided walkthrough from an access token to an eval report. It helps you write the eval config (which agent, who it runs for, which systems are simulated or real) and the test cases, validates everything with a dry run, starts the run, follows it, and explains the scores, failed checks, tool calls, and conversations.",
+    "developerName": "Moveworks",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://docs.moveworks.com/api-reference/alpha-eval-api/overview",
+    "defaultPrompt": [
+      "Run a Moveworks eval on my agent",
+      "Turn my questions and expected answers into Eval API test cases",
+      "Read my latest Moveworks eval report"
+    ]
+  }
+}

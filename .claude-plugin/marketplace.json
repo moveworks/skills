@@ -1,0 +1,20 @@
+{
+  "name": "moveworks",
+  "owner": {
+    "name": "Moveworks",
+    "url": "https://www.moveworks.com"
+  },
+  "metadata": {
+    "description": "Moveworks plugins for developers building on the Moveworks APIs."
+  },
+  "plugins": [
+    {
+      "name": "eval-api",
+      "source": "./plugins/eval-api",
+      "description": "Run evaluations of your Moveworks agents with the Moveworks Eval API: set up the eval config and test cases, validate with a dry run, start the run, and read the report.",
+      "version": "0.1.0",
+      "category": "development",
+      "homepage": "https://docs.moveworks.com/api-reference/alpha-eval-api/overview"
+    }
+  ]
+}
