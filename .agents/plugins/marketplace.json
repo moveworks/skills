@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "eval-api",
+      "name": "evals",
       "source": {
         "source": "local",
-        "path": "./plugins/eval-api"
+        "path": "./plugins/evals"
       },
       "policy": {
         "installation": "AVAILABLE",

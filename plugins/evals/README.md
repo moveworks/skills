@@ -1,4 +1,9 @@
-# Moveworks Eval API plugin
+# Moveworks Evals plugin
+
+Everything for evaluating Moveworks agents, in one plugin. It currently includes one skill: the Eval API
+walkthrough below.
+
+## Eval API
 
 Evaluate one of your Moveworks agents with the
 [Moveworks Eval API](https://docs.moveworks.com/api-reference/alpha-eval-api/overview), guided step by step
@@ -31,7 +36,7 @@ Never paste your token into the chat. The plugin reads it only from the file, an
 In Claude Code:
 
 ```
-/plugin install eval-api --marketplace moveworks/skills
+/plugin install evals --marketplace moveworks/skills
 ```
 
 For Codex and older Claude Code versions, see the [repository README](../../README.md#install).

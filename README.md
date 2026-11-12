@@ -5,21 +5,21 @@ through the API, step by step, in your own environment.
 
 | Plugin | What it does |
 |---|---|
-| [`eval-api`](plugins/eval-api/) | Evaluate your Moveworks agents with the [Eval API](https://docs.moveworks.com/api-reference/alpha-eval-api/overview): config, test cases, dry run, run, and report |
+| [`evals`](plugins/evals/) | Evaluate your Moveworks agents. Today it includes the [Eval API](https://docs.moveworks.com/api-reference/alpha-eval-api/overview): config, test cases, dry run, run, and report |
 
 ## Install
 
 ### Claude Code
 
 ```
-/plugin install eval-api --marketplace moveworks/skills
+/plugin install evals --marketplace moveworks/skills
 ```
 
 On Claude Code older than 2.1.275, add the marketplace first:
 
 ```
 /plugin marketplace add moveworks/skills
-/plugin install eval-api@moveworks-skills
+/plugin install evals@moveworks-skills
 ```
 
 ### Codex
@@ -28,7 +28,7 @@ On Claude Code older than 2.1.275, add the marketplace first:
 codex plugin marketplace add moveworks/skills
 ```
 
-Then open the plugin browser in Codex, choose **Moveworks**, and install **eval-api**.
+Then open the plugin browser in Codex, choose **Moveworks**, and install **evals**.
 
 ### Use it
 
