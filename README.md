@@ -19,7 +19,7 @@ On Claude Code older than 2.1.275, add the marketplace first:
 
 ```
 /plugin marketplace add moveworks/skills
-/plugin install eval-api@moveworks
+/plugin install eval-api@moveworks-skills
 ```
 
 ### Codex
