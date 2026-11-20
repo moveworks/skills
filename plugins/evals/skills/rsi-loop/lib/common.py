@@ -16,6 +16,7 @@ DEFAULTS = {
     "persona": "an employee using a work assistant",
     "automation_prefixes": {}, "human_sources": ["interactive"],
     "simulators": {}, "no_system_families": ["no tool"], "max_suite_tasks": 300, "run_approval": "ask",
+    "trace_org": "",
 }
 
 
@@ -114,6 +115,70 @@ def quotes_traffic(text, raw_sh, k=10):
     if not raw_sh:
         return False
     return any(not shingles(text, n).isdisjoint(raw_sh) for n in range(5, k + 1))
+
+
+# ───────────────────────────── the wording check (a hard step of the gate) ─────────────────────────────
+# A task keeps the user's intent, never the user's words. A gated task may not share
+#   * a run of RUN_CONV (8) or more words with its own source conversation (user and assistant turns), or
+#   * a run of RUN_ANY (10) or more words with any message in the pull, or
+#   * its whole text with a message of its source conversation (short tasks).
+
+RUN_CONV, RUN_ANY = 8, 10
+TURN_TEXT_FIELDS = ("utterance", "bot_reply", "bot_final_reply", "next_utterance")
+
+
+def turn_texts(turns):
+    return [t.get(f) or "" for t in turns for f in TURN_TEXT_FIELDS]
+
+
+class WordingIndex:
+    """Built once per gate run from the pull: per-conversation texts and the 10-word runs of every message."""
+
+    def __init__(self, turns):
+        by = {}
+        for t in turns:
+            by.setdefault(t.get("conversation_id"), []).append(t)
+        self.conv = {cid: turn_texts(ts) for cid, ts in by.items()}
+        self.any_runs = set()
+        for texts in self.conv.values():
+            for x in texts:
+                self.any_runs |= shingles(x, RUN_ANY)
+        self._conv_runs = {}
+
+    def conv_runs(self, cid):
+        if cid not in self._conv_runs:
+            runs = set()
+            for x in self.conv.get(cid, []):
+                runs |= shingles(x, RUN_CONV)
+            self._conv_runs[cid] = runs
+        return self._conv_runs[cid]
+
+
+def shared_runs(text, runs, n):
+    """The maximal stretches of text whose every n-word window is in runs (the reused wording)."""
+    w, out, i = _words(text), [], 0
+    while i <= len(w) - n:
+        if " ".join(w[i:i + n]) in runs:
+            j = i + n
+            while j < len(w) and " ".join(w[j - n + 1:j + 1]) in runs:
+                j += 1
+            out.append(" ".join(w[i:j]))
+            i = j
+        else:
+            i += 1
+    return out
+
+
+def wording_violations(index, cid, *texts):
+    """Reused source wording in any of texts, longest first. Empty means the wording check passes.
+    The phrases go back to the rewording model only; never print or store them."""
+    conv_runs, found = index.conv_runs(cid), []
+    for text in texts:
+        found += shared_runs(text, conv_runs, RUN_CONV) + shared_runs(text, index.any_runs, RUN_ANY)
+    whole = " ".join(_words(texts[0])) if texts else ""
+    if 3 <= len(whole.split()) < RUN_CONV and any(f" {whole} " in f" {' '.join(_words(x))} " for x in index.conv.get(cid, [])):
+        found.append(whole)                          # a whole short message, reused
+    return sorted(set(found), key=len, reverse=True)
 
 
 def display_name(cfg):

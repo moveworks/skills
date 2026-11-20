@@ -1,5 +1,11 @@
 {
- "_note": "Few-shot examples for the sensitivity gate. Every utterance here is invented. To add corrected examples, copy this file to <work>/fewshot_gate.json and edit the copy; never paste a real utterance into it.",
+ "_note": "Rules and few-shot examples for the sensitivity gate. Every utterance here is invented. To add corrected examples, copy this file to <work>/fewshot_gate.json and edit the copy; never paste a real utterance into it. 'rules' are sent to the gate as explicit rules; an example's optional 'not_this' shows a wrong rewrite and why.",
+ "rules": [
+  "The suite stores invented tasks with the same intent, never the user's wording. Say every kept request again in new words, even when nothing in it is sensitive. A task that shares 8 words in a row with its conversation, or 10 with any pulled message, is refused.",
+  "Internal initiative, project and roadmap content is rewritten into invented content, not one-word swaps. Names, goals, scope, status text, milestones, dates, owners, blockers and numbers are all replaced by made-up ones of the same shape and length, so the job stays and none of the facts do.",
+  "A rewrite that matches the original except for a swapped name or id is a leak. Change the content and the sentences, not only the identifiers.",
+  "Unreleased roadmap content is dropped (drop_reason unreleased_roadmap): planned features, what an upcoming release will contain, launch or release dates, roadmap items not yet public. A question about how the roadmap process works holds none of that and can be kept."
+ ],
  "examples": [
   {
    "context": [],
@@ -218,6 +224,10 @@
      }
     ],
     "runtime_data": "none"
+   },
+   "not_this": {
+    "why": "a one-word swap: same facts, same sentences, only the name changed",
+    "task": "Publish the approved status update below to the initiative DEMO-101 and set health to At Risk.\n\nApproved body:\nCutover slipped two weeks. Blocker: the identity sync rewrite. Three enterprise tenants moved to January. Asking for two more engineers..."
    }
   },
   {
@@ -226,6 +236,62 @@
    "output": {
     "decision": "drop",
     "drop_reason": "internal_confidential",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "Summarize where the Atlas Onboarding initiative stands for my staff meeting. Projects: Atlas SSO cutover is blocked on the vendor contract, Atlas welcome emails are on track for the 14th, Atlas billing sync is at risk because we are two engineers short.",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [
+     "Atlas Onboarding",
+     "Atlas",
+     "SSO cutover",
+     "welcome emails",
+     "billing sync",
+     "vendor contract",
+     "14th"
+    ],
+    "task": "I need a quick status rundown of the platform migration initiative to share with my team. Its three projects: the data export rework is waiting on a design review, the admin settings page is going to plan, and the audit log cleanup is a week late.",
+    "success_criteria": "Gives a short status per project with the risk called out, ready to read aloud, without inventing facts beyond the ones given.",
+    "placeholders": [
+     {
+      "value": "platform migration initiative",
+      "kind": "project"
+     }
+    ],
+    "runtime_data": "none"
+   },
+   "not_this": {
+    "why": "a one-word swap: the real projects, statuses and dates survive",
+    "task": "Summarize where the Demo Onboarding initiative stands for my staff meeting. Projects: SSO cutover is blocked on the vendor contract, welcome emails are on track for the 14th, billing sync is at risk because we are two engineers short."
+   }
+  },
+  {
+   "context": [],
+   "utterance": "What's landing in the December release for Sparrow? Pull the roadmap items marked Committed and draft a teaser post for customers with the launch dates.",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "unreleased_roadmap",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "update the roadmap item for Kestrel ranking v3: description should say it rolls out to all EU tenants in March with the new embeddings model replacing keyword fallback",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "unreleased_roadmap",
     "removed_terms": [],
     "task": "",
     "success_criteria": "",
@@ -281,6 +347,16 @@
     "In Progress",
     "At Risk"
    ],
+   "clean": true,
+   "issue": "none"
+  },
+  {
+   "task": "Draft a customer teaser for next month's release: the new ranking model, offline mode and the redesigned admin console all launch on the 12th.",
+   "clean": false,
+   "issue": "unreleased_roadmap"
+  },
+  {
+   "task": "Give me a status rundown of the platform migration initiative: the data export rework is waiting on a design review and the audit log cleanup is a week late.",
    "clean": true,
    "issue": "none"
   }

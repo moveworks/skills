@@ -1,6 +1,6 @@
 ---
 name: rsi-loop
-description: Run a daily improvement loop on one Moveworks assistant. Pulls the assistant's real traffic with the Data API, draws a stratified sample across capabilities (tool family and utterance type), experiences (good and poor) and audience, passes every sampled conversation through a sensitivity gate that rewrites it as an anonymized task or drops it, builds an Eval API task suite with tagged judges, runs it, turns failed checks and traces into proposed changes (instructions, tools, documentation), and writes a daily report of the negative experiences seen and what to merge to fix them. Use when someone asks to "run an RSI loop on my assistant", "set up a self-improvement loop", "build an eval suite from real traffic", "sample my assistant's traffic for evals", "what should I fix in my assistant", or "give me the daily improvement report".
+description: Run a daily improvement loop on one Moveworks assistant. Pulls the assistant's real traffic with the Data API, draws a stratified sample across capabilities (tool family and utterance type), experiences (good and poor, from an LLM experience judge) and audience, passes every sampled conversation through a sensitivity gate that rewrites it as an invented task with the same intent or drops it, builds an Eval API task suite with tagged judges, runs it, reads the traces of failing and poor tasks to find the turn and step where each went wrong, turns that into proposed changes (instructions, MCP tools, documentation, plugins), and writes a daily report of the negative experiences seen and what to approve or skip. Use when someone asks to "run an RSI loop on my assistant", "set up a self-improvement loop", "build an eval suite from real traffic", "sample my assistant's traffic for evals", "what should I fix in my assistant", or "give me the daily improvement report".
 ---
 
 # Run an improvement loop on a Moveworks assistant
@@ -19,12 +19,13 @@ Files next to this one (`<KIT>` below means this file's directory; `<WORK>` is t
 
 | File | Use |
 |---|---|
-| `rsi.sh` | every step: `init`, `pull`, `sample`, `gate-test`, `gate`, `build`, `check`, `dry-run`, `run`, `summarize`, `packets`, `analysis-check`, `report`, `daily`, `leak-scan`, `status` (`bash <KIT>/rsi.sh --help`) |
+| `rsi.sh` | every step: `init`, `pull`, `sample`, `gate-test`, `gate`, `build`, `check`, `dry-run`, `run`, `summarize`, `traces`, `packets`, `analysis-check`, `report`, `decide`, `daily`, `leak-scan`, `status` (`bash <KIT>/rsi.sh --help`) |
 | `lib/` | the Python behind each step (standard library only); each file's header documents its inputs and outputs |
+| `tests/` | unit tests for the gate's wording check, the experience judge and the trace step (`python3 -m unittest discover -s <KIT>/tests`) |
 | `templates/loop.json` | the loop's settings: org, assistant, window, sample size, simulators |
 | `templates/config.mocked.yaml`, `templates/config.talk-only.yaml` | eval configs to fill in |
 | `templates/world.json` | the invented records seeded into every eval task |
-| `templates/fewshot_gate.json` | invented examples that teach the sensitivity gate what to keep, rewrite and drop |
+| `templates/fewshot_gate.json` | the gate's explicit rules and invented examples of what to keep, rewrite and drop |
 | `templates/analysis.json` | the shape of the failure analysis you write in step 7 |
 | `../moveworks-eval-api/` | the Eval API helper (`eval.sh`) and its walkthrough; this skill calls it for every eval step |
 
@@ -51,10 +52,11 @@ slice a rate, not tags.
 ## Rules
 
 - **The sensitivity gate is not optional.** Nothing reaches the suite, the analysis or the report except
-  through step 4 and the leak checks in steps 5, 7 and 8. Never write a task by hand from a real
-  conversation, never copy text from `<WORK>/raw/` anywhere, and never skip or weaken a check that fails:
-  fix the content and run it again.
-- **Real traffic stays in `<WORK>/raw/`.** Do not open, print, quote or summarize the files in it. The
+  through step 4 and the leak checks in steps 5, 7 and 8. The suite stores invented tasks with the same
+  intent, never the user's wording. Never write a task by hand from a real conversation, never copy text
+  from `<WORK>/raw/` anywhere, and never skip or weaken a check that fails: fix the content and run it again.
+- **Real traffic stays in `<WORK>/raw/`.** Do not open, print, quote or summarize the files in it, and that
+  includes the trace playbacks in `<WORK>/raw/traces/`. The
   scripts read them; you read the outputs (`strata.md`, `population.json`, `gate_test.md`, summaries), which
   hold labels and rates only. If diagnosing a failure truly needs a production conversation, ask the user
   first, read only that conversation, and write down only a paraphrase.
@@ -71,6 +73,27 @@ slice a rate, not tags.
   and end it with `Done: <what exists now>. Next: <step>.`
 - Never edit the files in `<KIT>`. To change the seeded records or the gate's examples, copy the template
   into `<WORK>` (`world.json`, `fewshot_gate.json`) and edit the copy.
+
+## Design notes
+
+How the loop answers the questions an eval team asks first:
+
+- **Where did a conversation go wrong, not just pass or fail?** Step 7 reads the agent trace of every failing
+  and poor task: the eval run's own trajectory, and a playback of the production conversation behind it
+  (`mw chat-eval playback`, conversation playback in Cockpit). Each failure mode names the turn and the step (the tool
+  call) where it went wrong. Playback needs a signed-in Cockpit session; without one, `rsi.sh traces` records
+  `needs_cockpit_session` and the report says so at the top of What to merge.
+- **How does it tell good from poor without a judge?** It has one. An explicit LLM experience judge, with a
+  small rubric and invented few-shots, labels every conversation good or poor from the request, the final reply
+  and the user's next message. Thumbs down, no reply, retry, connect prompts, hand-offs and slow replies stay
+  as its features, and its agreement with them is recorded in `strata.md`, `population.json` and the report.
+- **Utterances carry names, ids and personal data.** Every sampled conversation passes the sensitivity gate
+  (step 4) before anything is stored: it is dropped, or rewritten as an invented task with the same intent. A
+  wording check refuses any task that shares 8 words in a row with its conversation or 10 with any pulled
+  message, and a second model that sees only the rewrite audits it adversarially. The report counts every step.
+- **What is the output?** Proposals. Each one is a before and after diff against the assistant's instructions,
+  an MCP tool's description or schema, documentation, or a plugin, with Approve / Skip in the daily report.
+  The loop applies nothing.
 
 ## Start: show the journey
 
@@ -153,7 +176,7 @@ Three pivots:
 | Pivot | Strata | How it is assigned |
 |---|---|---|
 | **Capability** | tool family (the system the turn called most) and utterance type (what the user wanted done) | tool family from the tool calls; utterance types are induced once from the traffic by a model, then frozen in `taxonomy.json` so they stay comparable |
-| **Experience** | good or poor, with the reason | poor = thumbs down, no reply, the user asked again, an ask to connect a system, a hand-off, a reply that says it could not do it or is the model's thinking notes, or a slow reply |
+| **Experience** | good or poor, with the reason | an explicit LLM judge (rubric and invented few-shots in `lib/sample.py`) reads the request, the final reply and the user's next message; the hard signals (thumbs down, no reply, the user asked again, an ask to connect a system, a hand-off, a reply that says it could not do it or is the model's thinking notes, a slow reply) are its features. If a judge call fails, that conversation uses the hard-signal rule |
 | **Audience** | a person or a machine caller, and the channel | from `automation_prefixes` and the platform |
 
 Cells are audience x tool family x experience. Every non-empty cell gets at least two picks; poor cells then
@@ -162,7 +185,9 @@ population over cell sample) so pass rates can be weighted back to real traffic.
 distinct prompt, and a cap per user.
 
 Show the user `<WORK>/sample/strata.md`: population against sample for every cell, then each margin
-(utterance type, channel, poor reason, tool action, depth). Ask whether the split looks right before going
+(utterance type, channel, poor reason, tool action, depth), and the judge's agreement with the hard signals.
+A big disagreement in one signal (say, most "retried" conversations judged good) usually means that signal is
+mismeasured; say so. Ask whether the split looks right before going
 on; `--poor-share`, `--people-share` and `--n` change it. Nothing in this folder holds utterance text.
 
 Done: `sample.jsonl` lists the picks and ranked reserves; `population.json` holds the traffic rates the
@@ -173,17 +198,26 @@ report uses. Next: the sensitivity gate.
 **Step 4 of 8: Sensitivity gate.** Turns each sampled conversation into an anonymized task, or drops it.
 This step is required every time, and it runs before anything is written to the suite.
 
-What the gate does to each conversation:
+The suite stores invented tasks with the same intent, never the user's wording. What the gate does to each
+conversation:
 
 1. **Pre-check:** a `<sensitive>` tag anywhere in the conversation drops it unread.
 2. **Gate (model, few-shot):** drops requests that are about, or cannot be stated without, personal data,
-   customer-confidential detail, private calendar or HR content, credentials, or internal material; also
-   drops non-tasks. Otherwise it rewrites the request in new words with generic people, companies, ids and
-   dates, and notes what private data the task would read if it ran for a real user.
-3. **Mechanical leak check:** the rewrite may not contain any term the gate removed, an email, a link, an
-   id, a long number, or the original wording (ten words in a row, or a whole short message).
-4. **Verify (second model call that sees only the rewrite):** anything that still looks real is dropped.
-5. **Duplicates** of a kept task are dropped. **Any error drops the conversation.** Dropped picks are
+   customer-confidential detail, private calendar or HR content, credentials, internal material or unreleased
+   roadmap content; also drops non-tasks. Otherwise it rewrites the request in new words with generic people,
+   companies, ids and dates, and notes what private data the task would read if it ran for a real user. It
+   follows the explicit `rules` in the few-shot file: internal initiative, project and roadmap content is
+   rewritten into invented content, not one-word swaps, and unreleased roadmap content is dropped.
+3. **Mechanical leak check:** the rewrite may not contain any term the gate removed, an email, a link, an id
+   or a long number.
+4. **Wording check (hard):** the task and its success criteria may not share 8 or more words in a row with
+   the source conversation (user or assistant turns), 10 or more with any message in the pull, or the whole
+   text of a short message. A task that does is reworded by a model that sees only the rewritten task, up to
+   three times, and dropped as `source_wording` if it still matches. Before anything is written, every kept
+   task is checked once more, and a match is dropped, never emitted.
+5. **Adversarial audit (second model call that sees only the final rewrite):** it tries to recover anything
+   real from it; a flag drops the conversation.
+6. **Duplicates** of a kept task are dropped. **Any error drops the conversation.** Dropped picks are
    replaced from the same cell's reserves.
 
 Always test on 10 first and read the result with the user:
@@ -193,16 +227,18 @@ RSI_WORK=<WORK> bash <KIT>/rsi.sh gate-test 10
 ```
 
 It prints rewritten text only. Check with the user that nothing in the kept rows looks like a real name,
-customer, project or id, and that the drops make sense. If the gate keeps something it should drop or the
-reverse, copy `templates/fewshot_gate.json` to `<WORK>/fewshot_gate.json`, add an **invented** example of
-the right behavior, and test again. Then the full run:
+customer, project or id, that no row reads like a copy of a real message with a name swapped, and that the
+drops make sense. If the gate keeps something it should drop or the reverse, copy
+`templates/fewshot_gate.json` to `<WORK>/fewshot_gate.json`, add an **invented** example of the right
+behavior (and, for a rewrite that was too close, a `not_this` with the wrong version), and test again. Then
+the full run:
 
 ```bash
 RSI_WORK=<WORK> bash <KIT>/rsi.sh gate
 ```
 
-Report the share kept and the share dropped per reason (it is appended to `strata.md`), and which cells
-are still short after backfill.
+Report the share kept, the share dropped per reason and per step, the share the wording check reworded (it
+is all appended to `strata.md`), and which cells are still short after backfill.
 
 Done: `tasks_candidates.jsonl` holds rewritten tasks only: no original text and no source ids. Next: the suite.
 
@@ -281,15 +317,29 @@ Done: today's pass rates exist. Next: analyze.
 
 ## 7. Analyze
 
-**Step 7 of 8: Analyze.** Turns failed checks into failure modes, each with one proposed change.
+**Step 7 of 8: Analyze.** Finds where each failing or poor task went wrong, then turns that into failure
+modes, each with one proposed change.
+
+First the traces. Pass or fail says that a task failed, not where:
 
 ```bash
+RSI_WORK=<WORK> bash <KIT>/rsi.sh traces
 RSI_WORK=<WORK> bash <KIT>/rsi.sh packets
 ```
 
+`traces` plays back the production conversation behind every task with a failed check and every
+poor-experience task (`mw chat-eval playback`; set `trace_org` in `loop.json` if the org's name there is a
+label, or `RSI_TRACE_CMD` for another tool). The playbacks are real traffic and stay in `<WORK>/raw/traces/`;
+`analysis/<date>.traces.json` keeps only where each one went wrong: the turn, the step (the tool call, in
+order), the tool and an outcome class. **It needs a signed-in Cockpit session.** If it prints
+`needs_cockpit_session`, ask the user to open the playback page in Cockpit in Chrome and send the cookies with the
+Moveworks Tools extension, then run it again. Do not try to sign in for them. Without traces, carry on: the
+report says the traces are missing and the causes rest on reply text and tool names.
+
 `<WORK>/analysis/<date>.packets.json` holds one packet per task with a failed check: its strata, the judge
-line or data check that failed, and the trace from the run (each tool call with its status, connector mode
-and error, and the final reply). These are the suite's rewritten tasks against simulated systems, so you
+line or data check that failed, the trace from the run (each tool call with its status, connector mode
+and error, and the final reply), and where it went wrong: `went_wrong` from the run, `went_wrong_in_traffic`
+from the production trace. These are the suite's rewritten tasks against simulated systems, so you
 may read them. With no eval run yet, the packets are the suite's poor-experience tasks and the signals the
 sampler saw, and the analysis is marked `traffic_sample`.
 
@@ -297,13 +347,16 @@ Read the packets and write `<WORK>/analysis/<date>.json` in the shape of `templa
 
 - **Failure modes.** Group tasks that fail for the same reason. For each: a plain title, its tasks, two or
   three evidence lines, the likely cause, and your confidence. Evidence describes what the trace shows
-  ("two searches and no call to the tool for that system"); it never quotes a conversation.
+  ("two searches and no call to the tool for that system"); it never quotes a conversation. For every task
+  whose packet names where it went wrong, add a `went_wrong` line: `{"task", "turn", "step", "what"}`, with
+  `what` in your own words ("the tracker read came back not connected, and the reply asked the user to
+  authorise").
 - **Not failures.** A task whose failed check is the environment's or the sampler's doing goes here with the
   reason, not into a mode.
 - **Proposals.** One per failure mode. `kind` is what changes: `prompt` (the assistant's instructions),
-  `tool` (a tool's description, parameters or behavior), `documentation` (knowledge the assistant reads),
-  `skill`, `access` (a connection or permission, no merge needed), `platform` (report it to Moveworks) or
-  `loop` (the sample or suite is measuring it wrong). Give where it merges, the exact before and after
+  `tool` (an MCP tool's description, schema or behavior), `documentation` (knowledge the assistant reads),
+  `plugin` (a plugin's logic or configuration), `skill`, `access` (a connection or permission, no merge
+  needed), `platform` (report it to Moveworks) or `loop` (the sample or suite is measuring it wrong). Give where it merges, the exact before and after
   text, the tags it should move, what you expect, and your confidence. Describe locations in words: no
   links, ids or emails.
 
@@ -315,8 +368,8 @@ RSI_WORK=<WORK> bash <KIT>/rsi.sh analysis-check
 ```
 
 It fails if a failed task is in no mode or in two, a mode has no proposal, a proposal is incomplete, a tag
-is not in the vocabulary, or any text has an id, link or email in it or repeats wording from the pulled
-traffic. Fix what it names and run it again.
+is not in the vocabulary, a traced task has no `went_wrong` line, or any text has an id, link or email in it
+or repeats wording from the pulled traffic. Fix what it names and run it again.
 
 Done: the analysis passes its check. Next: the report.
 
@@ -332,17 +385,22 @@ It writes `<WORK>/reports/<date>.html` (self-contained) and `.md`, in this order
 
 1. **Negative experiences in traffic:** the poor rate for the window, what went wrong as shares, where it
    happens (audience x tool family, utterance type), and the poor rate by day.
-2. **What to merge:** each proposal with its kind, where it merges, the before and after text, the failure
-   mode it fixes with evidence, how much traffic its tasks stand for, the tags it should move and where
-   those tags are today.
+2. **What to merge:** each proposal with its kind, where it merges, the before and after text, Approve / Skip,
+   the failure mode it fixes with its evidence and the turn and step where it went wrong, how much traffic its
+   tasks stand for, the tags it should move and where those tags are today. A "Needs Cockpit session" note
+   heads this section when traces are missing.
 3. **Eval suite, pass rate per tag:** the latest run, the change since the previous run, and the trend over
    the last ten runs, plus pass rates per stratum.
-4. **Sensitivity gate:** the share kept and dropped per reason.
+4. **Sensitivity gate:** the share kept, dropped per step (gate, leak check, wording check, adversarial audit,
+   duplicates) and per reason, and the share the wording check reworded.
+5. **Design notes:** the four answers above.
 
 The report is scanned before it is written, and is not written if the scan finds an id, link, email or
 wording from real traffic. Give the user the path to the HTML file and a three-line summary: the poor rate,
-the tag that moved most, and the first change to merge. The user decides what to merge; when they tell you
-a proposal was merged or rejected, set its `status` in the analysis file so tomorrow's report shows it.
+the tag that moved most, and the first change to merge. The user decides: Approve / Skip in the HTML copies
+`rsi.sh decide <date> <id> approve|skip`, which records it on the proposal (you can run it when they tell you
+in chat). An approved change is still theirs to merge; when they say it was merged, set its `status` to
+`merged` in the analysis file so tomorrow's report shows it.
 
 ### Running it every day
 
@@ -352,8 +410,9 @@ One command does the mechanical part of the day:
 RSI_WORK=<WORK> DATA_API_TOKEN_FILE=<path> EVAL_TOKEN_FILE=<path> bash <KIT>/rsi.sh daily
 ```
 
-It pulls the new hours, samples, gates, adds any new tasks to the suite, validates with a dry run, and then
-starts the eval run **only if** `loop.json` has `"run_approval": "standing"`. Ask the user once whether
+It pulls the new hours, samples (with the experience judge), gates, adds any new tasks to the suite,
+validates with a dry run, and then starts the eval run **only if** `loop.json` has
+`"run_approval": "standing"`. It ends with `traces`, `packets` and a report. Ask the user once whether
 they want that standing yes; set it only on their explicit answer, and tell them how to turn it off (set it
 back to `"ask"`). Without it, `daily` stops before the run and prints the command.
 
@@ -385,21 +444,22 @@ except the quote checks in steps 7 and 8.
 | `no_system_families` | `["no tool"]` | tool families that need no connector |
 | `max_suite_tasks` | 300 | the suite stops growing here |
 | `run_approval` | `ask` | `standing` lets `daily` start the eval run |
+| `trace_org` | `org` | the org name the trace playback tool expects, when `org` is only a label |
 
 **What each step writes** (all under `<WORK>`, none of it for sharing unless `leak-scan` passes)
 
 | Path | Holds | Real text? |
 |---|---|---|
-| `raw/<window>/` | pulled conversations and derived turns | **yes: never leaves this machine** |
-| `sample/strata.md`, `population.json`, `sample.jsonl`, `labels.jsonl`, `taxonomy.json` | strata, rates, picks | no (ids only) |
+| `raw/<window>/`, `raw/traces/` | pulled conversations, derived turns, trace playbacks | **yes: never leaves this machine** |
+| `sample/strata.md`, `population.json`, `sample.jsonl`, `labels.jsonl`, `taxonomy.json` | strata, rates, picks, judge verdicts and agreement | no (ids only) |
 | `sample/tasks_candidates.jsonl`, `audit.jsonl`, `gate_test.md` | rewritten tasks, gate decisions | no |
 | `suite/tasks.jsonl`, `tasks/*.yaml`, `held.yaml`, `manifest.jsonl`, `tags.json` | the task suite | no |
 | `runs/<date>/` | eval reports, `summary.json`, `traces.jsonl` | simulated conversations only |
-| `analysis/<date>.packets.json`, `<date>.json` | failed checks with traces; failure modes and proposals | no |
+| `analysis/<date>.traces.json`, `<date>.packets.json`, `<date>.json` | where each task went wrong (turn, step, tool, outcome); failed checks with traces; failure modes and proposals | no |
 | `reports/<date>.html`, `.md` | the daily report | no |
 
-**Model calls.** The sample labels and the gate use the local `claude` CLI with no tools and no saved
-session. To use another model, set `RSI_LLM_CMD` (see `lib/llm.py`). Only the scripts send real utterances
+**Model calls.** The sample labels, the experience judge, the gate and its rewording step use the local
+`claude` CLI with no tools and no saved session. To use another model, set `RSI_LLM_CMD` (see `lib/llm.py`). Only the scripts send real utterances
 to a model, once each, and nothing about the call is stored.
 
 **Limits to respect.** The Data API pages 500 rows at a time; `pull` spaces its calls and backs off on a

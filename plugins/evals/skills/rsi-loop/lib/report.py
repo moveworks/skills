@@ -8,7 +8,11 @@ Reads (all under <work>): sample/population.json (traffic rates per stratum), sa
 to the report date (per-tag pass rates over time), and analysis/<date>.json (failure modes and
 proposed changes; the most recent earlier analysis is used, and labelled, if today's is missing).
 
-Writes reports/<date>.md and reports/<date>.html (one self-contained file, no external assets).
+Also reads analysis/<date>.traces.json (where each failing or poor task went wrong, structure only).
+
+Writes reports/<date>.md and reports/<date>.html (one self-contained file, no external assets). Each
+proposal carries Approve / Skip: in the HTML the buttons copy `rsi.sh decide <date> <id> approve|skip`,
+which records the verdict on the proposal. The report ends with Design notes on how the loop works.
 
 The report shows rates with the number of checks or conversations behind them, never a bare
 count. It holds no utterance or reply text: before anything is written, the whole report is
@@ -58,8 +62,14 @@ def gather(work, date):
                 analysis, analysis_date = json.loads(p.read_text()), p.stem
                 break
     audit = common.read_jsonl(work / "sample" / "audit.jsonl")
+    tr = None
+    if (work / "analysis").exists():
+        for p in sorted((work / "analysis").glob("????-??-??.traces.json"), reverse=True):
+            if p.name[:10] <= date:
+                tr = json.loads(p.read_text())
+                break
     return {"cfg": cfg, "date": date, "manifest": manifest, "tags": tags, "runs": runs[-MAX_RUNS:],
-            "analysis": analysis, "analysis_date": analysis_date, "audit": audit,
+            "analysis": analysis, "analysis_date": analysis_date, "audit": audit, "traces": tr,
             "pop": load_json(work / "sample" / "population.json")}
 
 
@@ -80,6 +90,15 @@ def traffic_section(pop):
     ut = pop["by"]["utterance_type"]
     b.append(("table", ["Utterance type", "Share of traffic", "Poor rate", "Conversations behind the rate"],
               [[k, pct(v["share"]), pct(v["poor_rate"]), f"n = {v['n']}"] for k, v in ut.items()]))
+    jg = pop.get("experience_judge") or {}
+    if jg.get("judged"):
+        b.append(("h3", "Experience judge vs hard signals"))
+        b.append(("p", f"Good or poor is an LLM judge's verdict; the hard signals are its features. It agrees with them on "
+                       f"{pct(jg['agreement'])} of conversations (n = {jg['judged']} judged, {jg['fallback_to_signals']} fell back to the signals)."))
+        b.append(("table", ["Judge", "Signals say poor", "Signals say good"],
+                  [["poor", jg["both_poor"], jg["judge_poor_signals_good"]], ["good", jg["judge_good_signals_poor"], jg["both_good"]]]))
+        b.append(("table", ["Hard signal", "Judge also says poor", "Conversations behind the rate"],
+                  [[REASONS.get(k, k), pct(v["judge_poor_rate"]), f"n = {v['n']}"] for k, v in jg["per_signal"].items()]))
     days = pop.get("by_day") or {}
     if days:
         b.append(("h3", "Poor rate by day"))
@@ -140,11 +159,26 @@ def eval_section(g):
     return b
 
 
+def traces_note(g):
+    tr = g.get("traces") or {}
+    if tr.get("status") == "pulled":
+        return []
+    if tr.get("status") == "needs_cockpit_session":
+        head = "Needs Cockpit session."
+    elif tr.get("status") == "needs_mw_cli":
+        head = "Needs the trace tool (mw)."
+    else:
+        head = "Traces are missing."
+    have = f"{tr.get('tasks_traced', 0)} of {tr['tasks_wanted']} failing or poor tasks have a trace" if tr.get("tasks_wanted") else "No task has a trace"
+    return [("note", f"{head} {have}, so their turn and step are unknown and the causes below rest on reply text and tool names. "
+                     + (tr.get("reason") or "Run `rsi.sh traces`; it needs a signed-in Cockpit session."))]
+
+
 def merge_section(g):
     a = g["analysis"]
     if not a:
-        return [("p", "No failure analysis yet for this date. Run the analysis step, then build the report again.")]
-    b = []
+        return traces_note(g) + [("p", "No failure analysis yet for this date. Run the analysis step, then build the report again.")]
+    b = traces_note(g)
     if g["analysis_date"] != g["date"]:
         b.append(("p", f"Today's analysis is not written yet. This is the analysis from {g['analysis_date']}."))
     if a.get("basis") == "traffic_sample":
@@ -158,7 +192,7 @@ def merge_section(g):
     modes_by_p = collections.defaultdict(list)
     for m in a["failure_modes"]:
         modes_by_p[m.get("proposal")].append(m)
-    order = {"proposed": 0, "merged": 1, "superseded": 2, "rejected": 3}
+    order = {"proposed": 0, "approved": 1, "merged": 2, "skipped": 3, "superseded": 4, "rejected": 5}
     for p in sorted(a["proposals"], key=lambda p: order.get(p.get("status", "proposed"), 9)):
         ms = modes_by_p.get(p["id"], [])
         tasks = [t for m in ms for t in m["tasks"] if t in man]
@@ -173,11 +207,17 @@ def merge_section(g):
                          ("Tags it should move", ", ".join(p["tags"])), ("Those tags today", now),
                          ("Expected", p["expected"]), ("Confidence", p["confidence"])]))
         b.append(("diff", p["before"], p["after"]))
+        b.append(("decide", g["analysis_date"], p["id"], p.get("status", "proposed")))
         for m in ms:
             hit = collections.Counter(t for g_ in m["tasks"] for t in failed_tags.get(g_, ()))
             b.append(("p", f"{m['id']}. {m['title']}. Likely cause ({m['confidence']} confidence): {m['cause']}"
                            + (" Failed tags: " + ", ".join(f"{t} on {pct(n / len(m['tasks']))} of its tasks" for t, n in hit.most_common()) + "." if hit else "")))
             b.append(("ul", m["evidence"]))
+            ww = [f"Turn {w['turn']}" + (f" of {w['of']}" if w.get("of") else "") + (f", step {w['step']}" if w.get("step") else "")
+                  + f": {w['what']}" for w in m.get("went_wrong") or [] if w.get("turn")]
+            if ww:
+                b.append(("p", "Where it went wrong, from the traces:"))
+                b.append(("ul", ww))
     loose = [m for m in a["failure_modes"] if not m.get("proposal")]
     if loose:
         b.append(("h3", "Failure modes with no change proposed"))
@@ -189,12 +229,52 @@ def gate_section(g):
     au = g["audit"]
     if not au:
         return [("p", "The sensitivity gate has not run.")]
-    kept = sum(1 for x in au if x["decision"] == "keep")
+    n = len(au)
+    kept = [x for x in au if x["decision"] == "keep"]
     drops = collections.Counter(x["drop_reason"] for x in au if x["decision"] == "drop")
-    b = [("p", f"Latest sample: the gate kept {pct(kept / len(au))} of the conversations it read (n = {len(au)}) as rewritten tasks "
-               "and dropped the rest. No original wording, name or id is stored in the suite or in this report.")]
+    at = collections.Counter(x.get("stage") for x in au if x["decision"] == "drop")
+    reworded = sum(1 for x in kept if x.get("reworded"))
+    b = [("p", f"Latest sample: the gate kept {pct(len(kept) / n)} of the conversations it read (n = {n}) as invented tasks with "
+               "the same intent and dropped the rest. No original wording, name or id is stored in the suite or in this report.")]
+    steps = [("Pre-check", "a sensitive-content tag drops the conversation unread", at["precheck"], None),
+             ("Gate", "drops personal, customer, HR, credential, internal and unreleased roadmap content; rewrites the rest", at["gate"], None),
+             ("Leak check", "removed names, ids, links and emails may not survive", sum(v for k, v in at.items() if str(k).startswith("leak_check")), None),
+             ("Wording check", "no 8 words in a row from the source conversation, no 10 from any pulled message", at["wording"] + at["final_wording"], reworded),
+             ("Adversarial audit", "a second model that sees only the rewrite hunts for anything real", at["verify"], None),
+             ("Duplicates", "the same request with another id", at["dedupe"], None)]
+    b.append(("table", ["Step", "What it does", "Dropped (share of gated)", "Reworded and kept"],
+              [[s_, what, f"{pct(d / n)} (n = {d})", "-" if r is None else f"{pct(r / max(1, len(kept)))} of kept (n = {r})"] for s_, what, d, r in steps]))
     b.append(("table", ["Dropped because", "Share of gated conversations"],
-              [[k.replace("_", " "), pct(n / len(au))] for k, n in drops.most_common()]))
+              [[k.replace("_", " "), f"{pct(v / n)} (n = {v})"] for k, v in drops.most_common()]))
+    return b
+
+
+DESIGN_NOTES = [
+    ("Where a conversation went wrong, not just pass or fail",
+     "The analyze step reads the agent trace of every failing and poor task: the eval run's own trajectory, and a playback of "
+     "the production conversation behind it (`mw chat-eval playback`). Each failure mode names the turn and the step (the tool "
+     "call) where it went wrong. Playback needs a signed-in Cockpit session; when it is missing, this report says so at the top "
+     "of What to merge."),
+    ("Good versus poor experiences",
+     "An explicit LLM judge, with a small rubric and invented few-shots, labels every sampled conversation good or poor from the "
+     "request, the final reply and the user's next message. Thumbs down, no reply, retry, connect prompts, hand-offs and slow "
+     "replies stay as its features, and its agreement with them is shown under Negative experiences."),
+    ("Names, ids and personal data in utterances",
+     "Every sampled conversation passes the sensitivity gate before anything is stored: it is dropped, or rewritten as an "
+     "invented task with the same intent. A wording check refuses any task that shares 8 words in a row with its conversation "
+     "or 10 with any pulled message, and a second model audits each rewrite adversarially. The counts per step are in the "
+     "Sensitivity gate section."),
+    ("What comes out",
+     "Proposals. Each is a before and after diff against the assistant's instructions, an MCP tool's description or schema, "
+     "documentation, or a plugin, with Approve / Skip in this report. The loop applies nothing; the next run shows whether the "
+     "tags an approved change named moved."),
+]
+
+
+def design_section():
+    b = []
+    for q, a in DESIGN_NOTES:
+        b += [("h3", q), ("p", a)]
     return b
 
 
@@ -220,6 +300,10 @@ def to_md(title, sections):
                 L += ["| " + " | ".join(map(cell, r)) + " |" for r in blk[2]] + [""]
             elif kind == "diff":
                 L += ["```diff"] + [f"- {x}" for x in blk[1].split("\n")] + [f"+ {x}" for x in blk[2].split("\n")] + ["```", ""]
+            elif kind == "note":
+                L += [f"> **{blk[1].split('. ')[0]}.** {blk[1].split('. ', 1)[1] if '. ' in blk[1] else ''}", ""]
+            elif kind == "decide":
+                L += [f"Approve: `rsi.sh decide {blk[1]} {blk[2]} approve` · Skip: `rsi.sh decide {blk[1]} {blk[2]} skip` (now: {blk[3]})", ""]
             elif kind == "trend" and len(blk) == 3:     # per-tag trends are already a table in Markdown
                 L += [", ".join(f"{d[5:]} {pct(r)} (n = {n})" for d, r, n in blk[1]), ""]
     return "\n".join(L).rstrip() + "\n"
@@ -252,7 +336,12 @@ pre{background:var(--soft);border:1px solid var(--line);border-radius:6px;paddin
 .del{color:var(--bad)}.add{color:var(--good)}.fig{margin:6px 0 14px}.fig b{font-size:13px}
 .spark{width:420px;max-width:100%;height:70px;display:block}.spark polyline{stroke:var(--accent);stroke-width:2}.spark circle{fill:var(--accent)}.spark .axis{stroke:var(--line)}
 .range{color:var(--muted);font-size:13px}.sub{color:var(--muted);margin:0 0 8px}
+.note{border:1px solid var(--line);border-left:4px solid var(--bad);background:var(--soft);border-radius:6px;padding:10px 14px;margin:10px 0}
+.decide{display:flex;gap:8px;align-items:center;margin:4px 0 14px}.decide button{font:600 13px system-ui,sans-serif;padding:6px 14px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
+.decide button.ok{background:var(--good);border-color:var(--good);color:var(--bg)}.decide span{color:var(--muted);font-size:13px}
 """
+COPY_JS = """<script>document.addEventListener('click',function(e){var b=e.target.closest('button[data-cmd]');if(!b)return;
+navigator.clipboard.writeText(b.dataset.cmd).then(function(){b.parentNode.querySelector('span').textContent='Copied: '+b.dataset.cmd+'. Run it to record the choice.';});});</script>"""
 
 
 def to_html(title, sub, sections):
@@ -277,10 +366,17 @@ def to_html(title, sub, sections):
             elif kind == "diff":
                 out.append("<pre>" + "".join(f"<span class='del'>- {e(x)}</span>\n" for x in blk[1].split("\n")) +
                            "".join(f"<span class='add'>+ {e(x)}</span>\n" for x in blk[2].split("\n")) + "</pre>")
+            elif kind == "note":
+                head, _, rest = blk[1].partition(". ")
+                out.append(f"<div class='note'><b>{e(head)}.</b> {e(rest)}</div>")
+            elif kind == "decide":
+                cmd = f"rsi.sh decide {blk[1]} {blk[2]}"
+                out.append(f"<div class='decide'><button class='ok' data-cmd='{e(cmd)} approve'>Approve</button>"
+                           f"<button data-cmd='{e(cmd)} skip'>Skip</button><span>Now: {e(blk[3])}</span></div>")
             elif kind == "trend":
                 label = f"<b>{e(blk[3])}</b>" if len(blk) > 3 else ""
                 out.append(f"<div class='fig'>{label}{spark(blk[1], blk[2])}</div>")
-    out.append("</body></html>")
+    out.append(COPY_JS + "</body></html>")
     return "\n".join(out) + "\n"
 
 
@@ -297,7 +393,8 @@ def main():
     sections = [("Negative experiences in traffic", traffic_section(g["pop"])),
                 ("What to merge", merge_section(g)),
                 ("Eval suite: pass rate per tag", eval_section(g)),
-                ("Sensitivity gate", gate_section(g))]
+                ("Sensitivity gate", gate_section(g)),
+                ("Design notes", design_section())]
     md = to_md(title, [("Summary", [("p", sub)])] + sections)
 
     # last gate: the report itself must be clean

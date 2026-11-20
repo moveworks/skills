@@ -14,11 +14,14 @@
 #   dry-run               server-side validation of every task file; creates nothing
 #   run pilot|all         start the eval run(s). Needs the user's explicit yes first; this script does not ask.
 #   summarize [DATE]      per-tag and per-stratum pass rates -> runs/<date>/summary.json
+#   traces [DATE]         play back the real conversation behind each failing or poor task and record the turn
+#                         and step where it went wrong -> analysis/<date>.traces.json (needs a Cockpit session)
 #   packets [DATE]        what failed, with traces -> analysis/<date>.packets.json
 #   analysis-check [DATE] validate analysis/<date>.json (coverage, required fields, no leaks)
 #   report [DATE]         the daily report -> reports/<date>.html and .md
+#   decide DATE ID approve|skip   record the Approve / Skip for one proposal in the report
 #   daily                 pull, sample, gate, build, dry-run, then run + summarize if a standing yes is on file,
-#                         then packets and a report
+#                         then traces, packets and a report
 #   leak-scan FILE...     scan any file for emails, links, ids and quoted traffic before it leaves the machine
 #   status                what exists in the work folder
 #
@@ -27,7 +30,9 @@
 #   DATA_API_TOKEN_FILE   file holding the Data API token (default ~/.moveworks/data_api/token). Read only by lib/pull.py.
 #   DATA_API_HOST         default https://api.moveworks.ai
 #   RSI_FETCH_CMD         optional: your own command for Data API pages (see lib/pull.py)
-#   RSI_LLM_CMD           optional: your own command for the labelling and gate model calls (see lib/llm.py)
+#   RSI_LLM_CMD           optional: your own command for the labelling, judge and gate model calls (see lib/llm.py)
+#   RSI_TRACE_CMD         optional: trace playback command, with {org} and {conversation_id}
+#                         (default: mw chat-eval playback --org {org} --session-id {conversation_id} --format raw --all-messages)
 #   EVAL_TOKEN_FILE, EVAL_HOST   passed through to the Eval API helper
 #   EVAL_CONFIG           eval config to run with (default <work>/suite/config.yaml)
 #   RUN_DATE              date folder for runs (default today)
@@ -140,6 +145,7 @@ cmd_daily() {
   else
     echo "no eval config at $CONFIG yet: skipping the dry run and the eval run"
   fi
+  py analyze.py traces "$RUN_DATE" || echo "traces failed; the report will say they are missing"
   py analyze.py packets "$RUN_DATE"
   py report.py "$RUN_DATE"
   echo "next: write $WORK/analysis/$RUN_DATE.json from the packets, then: rsi.sh analysis-check && rsi.sh report"
@@ -201,12 +207,14 @@ case $cmd in
   dry-run) cmd_dry_run ;;
   run) cmd_run "$@" ;;
   summarize) py summarize.py "$@" ;;
+  traces) py analyze.py traces "$@" ;;
   packets) py analyze.py packets "$@" ;;
   analysis-check) py analyze.py check "$@" ;;
   report) py report.py "$@" ;;
+  decide) [[ $# -eq 3 ]] || die "decide needs DATE ID approve|skip"; py analyze.py decide "$1" "$2" "$3" ;;
   daily) cmd_daily ;;
   leak-scan) cmd_leak_scan "$@" ;;
   status) cmd_status ;;
-  -h | --help | help | "") sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h | --help | help | "") sed -n '2,39p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown command '$cmd' (rsi.sh --help)" ;;
 esac

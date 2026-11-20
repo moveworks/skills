@@ -1,15 +1,26 @@
 {
-  "_note": "Shape of <work>/analysis/<date>.json. The entries below are invented examples: replace them. Evidence is paraphrased, never quoted; no names, ids, links or emails anywhere (rsi.sh analysis-check enforces this).",
+  "_note": "Shape of <work>/analysis/<date>.json. The entries below are invented examples: replace them. Evidence is paraphrased, never quoted; no names, ids, links or emails anywhere (rsi.sh analysis-check enforces this). Every task whose packet names where it went wrong needs a went_wrong line. status: proposed, approved or skipped (rsi.sh decide), merged, rejected or superseded.",
   "date": "<YYYY-MM-DD>",
   "basis": "eval_run",
   "failure_modes": [
     {
       "id": "FM-1",
       "title": "A pasted link is searched for instead of opened",
-      "tasks": ["<goal_id>", "<goal_id>"],
+      "tasks": [
+        "<goal_id>",
+        "<goal_id>"
+      ],
       "evidence": [
         "Asked what a pasted page is about: the trace shows two general searches and no call to the tool for that system, then a request to paste the text.",
         "The Tool Choice judge line failed on both tasks; Correctness failed on one."
+      ],
+      "went_wrong": [
+        {
+          "task": "<goal_id>",
+          "turn": 1,
+          "step": 2,
+          "what": "Step 2 was a second general search; the tool that opens the linked page was never called."
+        }
       ],
       "cause": "The instructions never say that a link names its own system, so general search is the first reflex.",
       "confidence": "high",
@@ -17,7 +28,10 @@
     }
   ],
   "not_failures": [
-    {"task": "<goal_id>", "why": "The task's system has no simulator, so the honest 'cannot reach it' reply is the right one."}
+    {
+      "task": "<goal_id>",
+      "why": "The task's system has no simulator, so the honest 'cannot reach it' reply is the right one."
+    }
   ],
   "proposals": [
     {
@@ -27,7 +41,10 @@
       "target": "The assistant's instructions, first paragraph",
       "before": "(no guidance on links)",
       "after": "When the user gives you a link, open it with the tool for that system before anything else. Use general search only if that tool fails, and say that it failed.",
-      "tags": ["Tool Choice", "Correctness"],
+      "tags": [
+        "Tool Choice",
+        "Correctness"
+      ],
       "expected": "Tool Choice and Correctness on knowledge-question tasks that carry a link.",
       "confidence": "high",
       "status": "proposed"

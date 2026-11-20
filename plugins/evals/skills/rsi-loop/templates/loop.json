@@ -11,5 +11,6 @@
   "simulators": {},
   "no_system_families": ["no tool"],
   "max_suite_tasks": 300,
-  "run_approval": "ask"
+  "run_approval": "ask",
+  "trace_org": ""
 }

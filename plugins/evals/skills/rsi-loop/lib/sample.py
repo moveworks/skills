@@ -7,15 +7,20 @@
 Reads turns.jsonl from the latest pull and writes, under <work>/sample/:
   taxonomy.json    utterance types induced once from the traffic and then frozen, so per-type
                    numbers stay comparable run over run (--reinduce to rebuild). Invented examples only.
-  labels.jsonl     per conversation: utterance_type + reply_outcome (ids and labels, no text).
+  labels.jsonl     per conversation: utterance_type, reply_outcome and the experience judge's verdict
+                   (ids and labels, no text).
   sample.jsonl     the picked conversations and ranked reserves: ids, strata tags, weight. No text.
   population.json  rates per stratum for the whole window (what the daily report shows). No text.
   strata.md        population vs sample per cell, and the marginals.
 
 Three pivots
   capability   tool family (the system the turn called most) and utterance type (LLM, few-shot)
-  experience   poor vs good, from thumbs down, no reply, retry, an auth wall, a hand-off, a reply
-               that says it could not do the job (LLM), or a slow reply (>= p90 for its traffic class)
+  experience   good or poor, from an explicit LLM judge (a small rubric and invented few-shots) that reads
+               the request, the final reply, the user's next message and the hard signals: thumbs down,
+               no reply, retry, an auth wall, a hand-off, a slow reply (>= p90 for its traffic class) and
+               the reply-outcome label. The hard signals stay as features; the judge's agreement with
+               them is recorded in strata.md and population.json. If a judge call fails, that
+               conversation falls back to the hard-signal rule (any signal = poor) and is counted.
   audience     a person asking vs a machine caller (scheduled runs, integrations); channel is the finer cut
 
 Allocation
@@ -189,6 +194,44 @@ utterance "run the triage skill on this ticket and return only the JSON verdict"
 Return one label object per item, with the same i."""
 
 
+JUDGE_REASONS = ["did_the_job", "honest_limit", "not_done", "empty_or_notes", "bare_connect", "user_reasked",
+                 "unwanted_deflection", "wrong_answer"]
+GOOD_REASONS = ("did_the_job", "honest_limit")
+
+JUDGE_SYSTEM = """You are the experience judge for conversations with an enterprise AI assistant. For each item decide whether the user had a good or a poor experience on this turn.
+
+You get: the user's request, the assistant's final reply, the user's next message if there was one, the number of tool calls, and hard signals measured from the logs (thumbs_down, no_reply, retried, auth_wall, handoff, slow, plus reply_outcome from an earlier label). The signals are evidence, not the verdict: weigh them against what the reply actually does.
+
+Rubric. POOR when any of these is true:
+- not_done: the job was not done, and the reply does not say plainly what will work instead.
+- empty_or_notes: there is no reply, or the reply is the model's own planning notes instead of an answer.
+- bare_connect: the reply is only a link or button to connect a system, with no sentence and no part of the job done.
+- user_reasked: the user had to ask again, or pushed back, and this reply did not fix what they asked for.
+- unwanted_deflection: a hand-off, a ticket, or a question back to the user that they did not need ("what is the issue?" when the request was clear).
+- wrong_answer: the answer is plainly wrong or off-topic for the request.
+GOOD when:
+- did_the_job: it did what was asked, or answered it directly. A slow but complete answer is good. A correct "nothing to report" from a scheduled run is good.
+- honest_limit: it could not do it, said so once and plainly, and said what will work instead.
+Notes: a "retried" flag on a next message that asks something new is not a retry. A hand-off the user asked for is good. A thumbs down on a reply that did the job is still a thumbs down: call it poor unless the reply is clearly right and complete.
+confidence: high when the reply makes it obvious, low when you are guessing.
+
+Examples (invented):
+request "what shipped for search last week?" / reply "Three changes shipped: ..." / next "" / signals [] -> good, did_the_job, high
+request "summarize open escalations for my area" / reply "Here are the 6 open ones, by age: ..." / signals ["slow"] -> good, did_the_job, high
+request "update that project to at risk" / reply "I could not update it: the tracker returned a permissions error. You can change it from the project page, or ask an admin for edit access." / signals [] -> good, honest_limit, medium
+request "what's on my calendar tomorrow" / reply "[Connect Calendar](link)" / next "try again" / signals ["auth_wall", "retried"] -> poor, bare_connect, high
+request "[scheduled run] daily brief" / reply "**Finalizing** I need to keep the output concise and check the links before..." / signals [] reply_outcome reasoning_leak -> poor, empty_or_notes, high
+request "put me through to a live agent" / reply "Sure, what is the issue you are having?" / next "I said a live agent please" / signals ["retried"] -> poor, unwanted_deflection, high
+request "who owns the billing service?" / reply "The billing service is owned by the payments team; their lead is listed on the team page." / next "thanks, and who owns search?" / signals ["retried"] -> good, did_the_job, high
+request "summarize this page" / reply "I could not find that page. Could you paste its text?" / signals ["thumbs_down"] -> poor, not_done, medium
+
+Return one verdict per item, with the same i."""
+JUDGE_SCHEMA = {"type": "object", "required": ["verdicts"], "properties": {"verdicts": {"type": "array", "items": {
+    "type": "object", "required": ["i", "experience", "reason", "confidence"], "properties": {
+        "i": {"type": "integer"}, "experience": {"type": "string", "enum": ["good", "poor"]},
+        "reason": {"type": "string", "enum": JUDGE_REASONS}, "confidence": {"type": "string", "enum": ["high", "medium", "low"]}}}}}}
+
+
 def final_reply(t):
     """The last bot message is the answer; earlier ones are progress or thinking notes."""
     return t["bot_final_reply"] if "bot_final_reply" in t else (t.get("bot_reply") or "")
@@ -245,6 +288,47 @@ def label_all(convs, taxonomy, model, cache_path, workers, batch=20):
     live = {c["conversation_id"] for c in convs}
     write_jsonl(cache_path, [r for k, r in cache.items() if k in live])
     return cache
+
+
+def judge_all(convs, model, cache, workers, batch=15):
+    """The experience judge: one explicit LLM verdict per conversation, cached in labels.jsonl next to its labels.
+    Its inputs are the anchor turn's text plus the hard signals as features. Returns the number of verdicts missing."""
+    todo = [c for c in convs if c["conversation_id"] in cache and "judge_experience" not in cache[c["conversation_id"]]]
+
+    def run(chunk):
+        items = [{"i": i, "request": excerpt(c["anchor"]["utterance"], 400, 500), "reply": excerpt(final_reply(c["anchor"]), 500, 300),
+                  "next": excerpt(c["anchor"].get("next_utterance") or "", 200, 100), "tool_calls": len(c["anchor"].get("plugins") or []),
+                  "signals": c["anchor"]["_sig"], "reply_outcome": cache[c["conversation_id"]]["reply_outcome"]} for i, c in enumerate(chunk)]
+        try:
+            out = llm.call(JUDGE_SYSTEM, json.dumps(items, ensure_ascii=False), JUDGE_SCHEMA, model=model)
+        except llm.LlmError:
+            return []
+        return [(chunk[v["i"]]["conversation_id"], v) for v in out.get("verdicts", [])
+                if isinstance(v.get("i"), int) and 0 <= v["i"] < len(chunk)]
+
+    chunks = [todo[i:i + batch] for i in range(0, len(todo), batch)]
+    print(f"judging {len(todo)} conversations in {len(chunks)} calls", flush=True)
+    for rows in llm.map_calls(run, chunks, workers):
+        for cid, v in rows:
+            cache[cid].update(judge_experience=v["experience"], judge_reason=v["reason"], judge_confidence=v["confidence"])
+    return sum(1 for c in convs if "judge_experience" not in (cache.get(c["conversation_id"]) or {}))
+
+
+def judge_agreement(convs):
+    """How often the judge agrees with the hard-signal rule (any signal = poor). Counts and rates only."""
+    J = [c for c in convs if c.get("judge")]
+    m = collections.Counter((c["experience"], "poor" if c["poor_signals"] else "good") for c in J)
+    n = len(J)
+    per = {}
+    for sig in POOR_ORDER:
+        with_sig = [c for c in J if sig in c["poor_signals"]]
+        if with_sig:
+            per[sig] = {"n": len(with_sig), "judge_poor_rate": round(sum(1 for c in with_sig if c["experience"] == "poor") / len(with_sig), 4)}
+    return {"judged": n, "fallback_to_signals": len(convs) - n,
+            "agreement": round((m[("poor", "poor")] + m[("good", "good")]) / n, 4) if n else None,
+            "both_poor": m[("poor", "poor")], "both_good": m[("good", "good")],
+            "judge_poor_signals_good": m[("poor", "good")], "judge_good_signals_poor": m[("good", "poor")],
+            "per_signal": per}
 
 
 # ───────────────────────────── allocation ─────────────────────────────
@@ -383,9 +467,19 @@ def strata_md(convs, picked, taxonomy, meta):
            defs={t["id"]: t["definition"] for t in taxonomy})
     margin("Channel", "channel", "Who is asking and where: people on each chat surface, versus each kind of machine caller.")
     margin("Poor experience, by first signal", "poor_reason",
-           "One reason per poor conversation, the first that applies in this order: " + ", ".join(POOR_ORDER) +
-           f". Slow means at or over the 90th percentile for its traffic class ({meta['p90']}).",
+           "One reason per poor conversation: the first hard signal that applies, in this order: " + ", ".join(POOR_ORDER) +
+           f", else the judge's reason. Slow means at or over the 90th percentile for its traffic class ({meta['p90']}).",
            rows_filter=lambda c: c["experience"] == "poor", share=True)
+    ag = meta.get("judge")
+    if ag and ag["judged"]:
+        L += ["", "## Experience judge vs hard signals", "",
+              f"Experience is the LLM judge's verdict. It agrees with the hard-signal rule (any signal = poor) on {pct(ag['both_poor'] + ag['both_good'], ag['judged'])} "
+              f"of {ag['judged']} judged conversations; {ag['fallback_to_signals']} fell back to the signals because the judge call failed.", "",
+              "| Judge | Signals say poor | Signals say good |", "|---|---|---|",
+              f"| poor | {ag['both_poor']} | {ag['judge_poor_signals_good']} |",
+              f"| good | {ag['judge_good_signals_poor']} | {ag['both_good']} |", "",
+              "| Hard signal | Conversations with it | Judge also says poor |", "|---|---|---|"]
+        L += [f"| {k} | {v['n']} | {pct(round(v['judge_poor_rate'] * v['n']), v['n'])} |" for k, v in ag["per_signal"].items()]
     margin("Tool action", "action", "Whether the turn called a tool that changes something (create, update, send, publish) or only read.")
     margin("Conversation depth", "depth", "Single question versus a back-and-forth.")
     L += ["", "## How the sample was drawn", "",
@@ -399,7 +493,7 @@ def strata_md(convs, picked, taxonomy, meta):
     return "\n".join(L) + "\n"
 
 
-def population(convs, meta):
+def population(convs, meta, judge=None):
     """Rates per stratum over every conversation in the window. Labels and numbers only."""
     def block(rows, key):
         out = {}
@@ -424,6 +518,7 @@ def population(convs, meta):
                          for r, n in collections.Counter(c["poor_reason"] for c in poor).most_common()},
         "by_day": {d: {"n": len(cs), "poor_rate": round(sum(1 for c in cs if c["experience"] == "poor") / len(cs), 4)}
                    for d, cs in sorted(by_day.items())},
+        "experience_judge": judge,
     }
 
 
@@ -443,6 +538,7 @@ def main():
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--label-model", default="sonnet")
     ap.add_argument("--relabel", action="store_true", help="ignore labels.jsonl and label every conversation again")
+    ap.add_argument("--judge-model", default="sonnet", help="model for the experience judge")
     ap.add_argument("--taxonomy-model", default="sonnet")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--reinduce", action="store_true", help="rebuild taxonomy.json (breaks comparability with earlier runs)")
@@ -484,6 +580,8 @@ def main():
     if a.relabel and (out / "labels.jsonl").exists():
         (out / "labels.jsonl").unlink()
     labels = label_all(convs, taxonomy, a.label_model, out / "labels.jsonl", a.workers)
+    unjudged = judge_all(convs, a.judge_model, labels, a.workers)
+    write_jsonl(out / "labels.jsonl", [labels[c["conversation_id"]] for c in convs if c["conversation_id"] in labels])
     missing = 0
     for c in convs:
         l = labels.get(c["conversation_id"])
@@ -493,11 +591,16 @@ def main():
         sig = set(c["anchor"]["_sig"])
         if c["reply_outcome"] in POOR_OUTCOMES:
             sig.add(c["reply_outcome"])
-        c["poor_signals"] = [s for s in POOR_ORDER if s in sig]
-        c["experience"] = "poor" if sig else "good"
-        c["poor_reason"] = c["poor_signals"][0] if sig else None
+        c["poor_signals"] = [s for s in POOR_ORDER if s in sig]     # features, kept whatever the judge says
+        c["judge"] = (l or {}).get("judge_experience")
+        c["experience"] = c["judge"] or ("poor" if sig else "good")
+        c["poor_reason"] = None if c["experience"] == "good" else (
+            c["poor_signals"][0] if c["poor_signals"] else (l or {}).get("judge_reason") or "judge")
     if missing:
         print(f"warning: {missing} conversations could not be labelled", file=sys.stderr)
+    if unjudged:
+        print(f"warning: {unjudged} conversations have no judge verdict; they use the hard-signal rule", file=sys.stderr)
+    judge = judge_agreement(convs)
 
     cells = collections.defaultdict(list)
     for c in convs:
@@ -517,7 +620,7 @@ def main():
                      "strata": {"audience": c["audience"], "tool_family": c["tool_family"], "utterance_type": c["utterance_type"],
                                 "experience": c["experience"], "poor_reason": c["poor_reason"],
                                 "channel": c["channel"], "action": c["action"], "depth": c["depth"]},
-                     "poor_signals": c["poor_signals"], "reply_outcome": c["reply_outcome"], "tools": c["tools"],
+                     "poor_signals": c["poor_signals"], "reply_outcome": c["reply_outcome"], "judge": c["judge"], "tools": c["tools"],
                      "user": c["user"], "day": c["anchor"]["created_time"][:10],
                      "cell_population": len(cells[key]),
                      "weight": round(len(cells[key]) / cell_n[key], 2) if cell_n[key] else None})
@@ -529,10 +632,10 @@ def main():
             "turns": len(turns), "users": len({t.get("user_id") for t in turns}),
             "p90": ", ".join(f"{k} {v:.0f} s" for k, v in p90.items()), "min_per_cell": a.min_per_cell,
             "min_per_margin": a.min_per_margin, "poor_share": a.poor_share, "user_cap": a.user_cap,
-            "seed": a.seed, "reserves": a.reserves, "people_share": a.people_share}
+            "seed": a.seed, "reserves": a.reserves, "people_share": a.people_share, "judge": judge}
     (out / "strata.md").write_text(strata_md(convs, picked, taxonomy, meta))
     pop = population(convs, {"assistant": common.display_name(cfg), "org": cfg["org"], "since": (man.get("since") or days[0])[:10],
-                             "until": (man.get("until") or days[-1])[:10], "turns": len(turns), "p90_latency_s": p90})
+                             "until": (man.get("until") or days[-1])[:10], "turns": len(turns), "p90_latency_s": p90}, judge)
     (out / "population.json").write_text(json.dumps(pop, indent=1) + "\n")
     print(f"population {len(convs)} conversations, sample {len(picked)}, reserves {sum(1 for r in rows if not r['selected'])}")
     print(f"wrote {out}/strata.md, sample.jsonl, population.json, labels.jsonl, taxonomy.json")
