@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks that the Claude Code and Codex files agree, every listed plugin exists, every skill has a name and
-# description, scripts parse, and nothing that looks like a secret is committed. Needs bash and jq.
+# description, scripts parse, each skill's unit tests pass, and nothing that looks like a secret is committed.
+# Needs bash, jq and python3.
 # Usage: scripts/validate.sh   (run from anywhere; exits 1 on any problem)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -64,6 +65,11 @@ for name in $folders; do
   while IFS= read -r sh; do
     bash -n "$sh" || bad "$sh: bash syntax error"
   done < <(find "$dir" -name '*.sh' -type f)
+
+  while IFS= read -r t; do
+    python3 -m unittest discover -s "$t" -p 'test_*.py' > /dev/null 2> "$t/.unittest.log" && rm -f "$t/.unittest.log" ||
+      { sed 's/^/      /' "$t/.unittest.log" | tail -30; rm -f "$t/.unittest.log"; bad "$t: unit tests failed"; }
+  done < <(find "$dir/skills" -mindepth 2 -maxdepth 2 -type d -name tests)
   ok "$name $(jq -r .version "$cm")"
 done
 

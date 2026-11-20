@@ -5,7 +5,7 @@ through the API, step by step, in your own environment.
 
 | Plugin | What it does |
 |---|---|
-| [`evals`](plugins/evals/) | Evaluate your Moveworks agents. Today it includes the [Eval API](https://docs.moveworks.com/api-reference/alpha-eval-api/overview): config, test cases, dry run, run, and report |
+| [`evals`](plugins/evals/) | Evaluate and improve your Moveworks agents. Includes the [Eval API](https://docs.moveworks.com/api-reference/alpha-eval-api/overview) walkthrough (config, test cases, dry run, run, report) and the improvement loop (`rsi-loop`): an anonymized eval suite built from real traffic, run daily, with a report of what to fix |
 
 ## Install
 
@@ -32,7 +32,7 @@ Then open the plugin browser in Codex, choose **Moveworks**, and install **evals
 
 ### Use it
 
-Ask your agent: "Run a Moveworks eval on my agent."
+Ask your agent: "Run a Moveworks eval on my agent." or "Run an improvement loop on my assistant."
 
 ### Updates
 
@@ -43,7 +43,7 @@ Fixes reach you when you refresh the marketplace:
 
 ## Requirements
 
-`bash`, `curl` and `jq`, plus access to the Moveworks API you're using. Each plugin's README lists what it needs.
+`bash`, `curl` and `jq`, plus access to the Moveworks API you're using. The improvement loop also needs `python3`. Each plugin's README lists what it needs.
 
 ## Support
 

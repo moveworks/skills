@@ -1,7 +1,7 @@
 {
   "name": "evals",
-  "version": "0.1.0",
-  "description": "Run evaluations of your Moveworks agents with the Moveworks Eval API: set up the eval config and test cases, validate with a dry run, start the run, and read the report.",
+  "version": "0.2.0",
+  "description": "Evaluate and improve your Moveworks agents: run evaluations with the Moveworks Eval API (config, test cases, dry run, run, report), and run a daily improvement loop that builds an anonymized eval suite from real traffic and reports what to fix.",
   "author": {
     "name": "Moveworks",
     "url": "https://www.moveworks.com"
@@ -9,12 +9,12 @@
   "homepage": "https://docs.moveworks.com/api-reference/alpha-eval-api/overview",
   "repository": "https://github.com/moveworks/skills",
   "license": "MIT",
-  "keywords": ["moveworks", "eval", "evaluation", "agents", "api"],
+  "keywords": ["moveworks", "eval", "evaluation", "agents", "api", "improvement-loop"],
   "skills": "./skills/",
   "interface": {
     "displayName": "Moveworks Evals",
     "shortDescription": "Evaluate your Moveworks agents, starting with the Eval API",
-    "longDescription": "A guided walkthrough from an access token to an eval report. It helps you write the eval config (which agent, who it runs for, which systems are simulated or real) and the test cases, validates everything with a dry run, starts the run, follows it, and explains the scores, failed checks, tool calls, and conversations.",
+    "longDescription": "A guided walkthrough from an access token to an eval report. It helps you write the eval config (which agent, who it runs for, which systems are simulated or real) and the test cases, validates everything with a dry run, starts the run, follows it, and explains the scores, failed checks, tool calls, and conversations. It also includes an improvement loop: sample an assistant's real traffic, turn it into an anonymized task suite behind a sensitivity gate, run it, and get a daily report of what went wrong and what to change.",
     "developerName": "Moveworks",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Write"],
@@ -22,7 +22,8 @@
     "defaultPrompt": [
       "Run a Moveworks eval on my agent",
       "Turn my questions and expected answers into Eval API test cases",
-      "Read my latest Moveworks eval report"
+      "Read my latest Moveworks eval report",
+      "Run an improvement loop on my Moveworks assistant"
     ]
   }
 }

@@ -1,3 +1,5 @@
 eval-out/
 moveworks-eval/
+/rsi-loop/
+__pycache__/
 .DS_Store

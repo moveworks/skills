@@ -1,0 +1,24 @@
+# rsi-loop eval config: the systems the suite's tasks need are simulated, every other connector is
+# left out. Nothing real is read or written. Copy this to <work>/suite/config.yaml and fill in every
+# <PLACEHOLDER>; the Eval API helper refuses to submit while any are left.
+# Field meanings: see the moveworks-eval-api skill next to this one.
+
+title: rsi-loop - <ASSISTANT NAME> - simulated systems
+
+requestor:
+  name: <TOKEN USER NAME>                # the token's user: conversations run as that user
+  email: <TOKEN USER EMAIL>
+
+scoped_agent_id: <SCOPED AGENT ID>       # the assistant under test. A temporary copy is tested.
+
+platform: hera                           # agents with MCP connectors need hera
+
+# One row per connector you want simulated. Find simulators with `eval.sh catalog <word>`.
+# List the same tool families under "simulators" in <work>/loop.json so the suite knows which
+# tasks have a simulated system.
+# Never map a connector as_is for this loop: it would act for real and bring real records into reports.
+connector_map:
+  - name: <CONNECTOR NAME>
+    original_URL: <ITS REAL BASE URL>
+    eval_URL: https://marketplace.moveworks.com/api/purple-suite/<APP>/<PATH>
+    mode: mocked

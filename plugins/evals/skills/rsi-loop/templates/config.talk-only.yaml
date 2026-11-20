@@ -1,0 +1,20 @@
+# rsi-loop eval config, fallback: every connector is left out (the placeholder row names no real
+# connector), so the assistant can only talk. Use it for a first run that proves access, or when
+# no simulator fits. Build the suite with `rsi.sh build --no-deterministic` for this config.
+# Copy this to <work>/suite/config.yaml and fill in every <PLACEHOLDER>.
+
+title: rsi-loop - <ASSISTANT NAME> - talk only
+
+requestor:
+  name: <TOKEN USER NAME>
+  email: <TOKEN USER EMAIL>
+
+scoped_agent_id: <SCOPED AGENT ID>
+
+platform: hera
+
+connector_map:
+  - name: eval-placeholder
+    original_URL: https://placeholder.invalid
+    eval_URL: https://marketplace.moveworks.com/api/purple-suite/hris
+    mode: mocked
