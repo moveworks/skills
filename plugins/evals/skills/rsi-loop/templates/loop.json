@@ -1,0 +1,15 @@
+{
+  "org": "<YOUR ORG>",
+  "assistant": "<ASSISTANT ID OR EXACT NAME>",
+  "assistant_name": "",
+  "window_days": 14,
+  "sample_size": 100,
+  "id_prefix": "rsi",
+  "persona": "an employee using a work assistant",
+  "automation_prefixes": {},
+  "human_sources": ["interactive"],
+  "simulators": {},
+  "no_system_families": ["no tool"],
+  "max_suite_tasks": 300,
+  "run_approval": "ask"
+}

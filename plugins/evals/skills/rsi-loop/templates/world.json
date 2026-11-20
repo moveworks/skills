@@ -1,0 +1,354 @@
+{
+ "_note": "The synthetic world seeded into every eval task (import_data.collections). Everything here is invented. Collection and field names follow the simulators' record formats (see `eval.sh catalog`). To change it, copy this file to <work>/world.json and edit the copy; never put a real person, customer or record in it.",
+ "_frozen_time": "2026-01-18T17:00:00Z",
+ "_unchanged_check": {
+  "collection": "tasks",
+  "id_field": "id",
+  "field": "status"
+ },
+ "collections": {
+  "pm_users": [
+   {
+    "id": "U-001",
+    "name": "Jordan Lee",
+    "email": "jordan.lee@example.com",
+    "role": "Product lead",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "U-002",
+    "name": "Sam Rivera",
+    "email": "sam.rivera@example.com",
+    "role": "Engineering manager",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "U-003",
+    "name": "Alex Chen",
+    "email": "alex.chen@example.com",
+    "role": "Product manager",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "pm_teams": [
+   {
+    "id": "DEMO-TEAM",
+    "name": "Demo Team",
+    "key": "DEMO",
+    "memberIds": [
+     "U-001",
+     "U-002",
+     "U-003"
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "initiatives": [
+   {
+    "id": "INIT-1",
+    "name": "Platform migration initiative",
+    "description": "Move teams onto the new platform by end of quarter.",
+    "status": "active",
+    "owner": "Jordan Lee",
+    "targetDate": "2026-02-18",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "projects": [
+   {
+    "id": "PRJ-1",
+    "name": "Migration Bug Fixes",
+    "status": "active",
+    "owner": "Sam Rivera",
+    "startDate": "2025-12-01",
+    "endDate": "2026-02-11",
+    "progress": 60,
+    "initiativeIds": [
+     "INIT-1"
+    ],
+    "teamIds": [
+     "DEMO-TEAM"
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "PRJ-2",
+    "name": "Project A",
+    "status": "active",
+    "owner": "Alex Chen",
+    "startDate": "2025-12-15",
+    "endDate": "2026-02-18",
+    "progress": 35,
+    "initiativeIds": [
+     "INIT-1"
+    ],
+    "teamIds": [
+     "DEMO-TEAM"
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "PRJ-3",
+    "name": "Project B",
+    "status": "planning",
+    "owner": "Jordan Lee",
+    "startDate": "2026-01-20",
+    "endDate": "2026-03-29",
+    "progress": 0,
+    "initiativeIds": [],
+    "teamIds": [
+     "DEMO-TEAM"
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "tasks": [
+   {
+    "id": "DEMO-101",
+    "title": "Search results miss newly added articles",
+    "description": "Articles added in the last day do not show up in answers. Next step: confirm the indexing delay with engineering.",
+    "projectId": "PRJ-1",
+    "status": "in_progress",
+    "assignee": "Sam Rivera",
+    "priority": "high",
+    "dueDate": "2026-01-20",
+    "teamId": "DEMO-TEAM",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "DEMO-102",
+    "title": "Approval message shows the wrong requester name",
+    "description": "Reported by one test team. Fix is in review.",
+    "projectId": "PRJ-1",
+    "status": "review",
+    "assignee": "Alex Chen",
+    "priority": "medium",
+    "dueDate": "2026-01-19",
+    "teamId": "DEMO-TEAM",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "DEMO-103",
+    "title": "Add export to the usage dashboard",
+    "description": "Requested for the monthly review.",
+    "projectId": "PRJ-2",
+    "status": "todo",
+    "assignee": "Alex Chen",
+    "priority": "low",
+    "dueDate": "2026-02-04",
+    "teamId": "DEMO-TEAM",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "DEMO-104",
+    "title": "Scheduled digest arrives an hour late",
+    "description": "Blocked on a time zone fix.",
+    "projectId": "PRJ-1",
+    "status": "backlog",
+    "assignee": "Sam Rivera",
+    "priority": "urgent",
+    "dueDate": "2026-01-18",
+    "teamId": "DEMO-TEAM",
+    "blockers": [
+     "Time zone fix not merged"
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "status_updates": [
+   {
+    "id": "SU-1",
+    "projectId": "PRJ-1",
+    "initiativeId": "INIT-1",
+    "author": "Sam Rivera",
+    "body": "Two of four migration bugs are fixed. The late digest is blocked on a time zone fix.",
+    "health": "at_risk",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "channels": [
+   {
+    "id": "C-001",
+    "name": "demo-channel",
+    "type": "public",
+    "description": "Team channel for the demo team",
+    "memberCount": 3,
+    "members": [
+     "U-001",
+     "U-002",
+     "U-003"
+    ],
+    "createdBy": "U-001",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "C-002",
+    "name": "evals",
+    "type": "public",
+    "description": "Nightly eval run results",
+    "memberCount": 3,
+    "members": [
+     "U-001",
+     "U-002",
+     "U-003"
+    ],
+    "createdBy": "U-002",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "users": [
+   {
+    "id": "U-001",
+    "displayName": "Jordan Lee",
+    "email": "jordan.lee@example.com",
+    "status": "active",
+    "role": "member",
+    "timezone": "America/Los_Angeles",
+    "joinedAt": "2026-01-12T17:00:00Z",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "U-002",
+    "displayName": "Sam Rivera",
+    "email": "sam.rivera@example.com",
+    "status": "active",
+    "role": "member",
+    "timezone": "America/Los_Angeles",
+    "joinedAt": "2026-01-12T17:00:00Z",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "U-003",
+    "displayName": "Alex Chen",
+    "email": "alex.chen@example.com",
+    "status": "active",
+    "role": "member",
+    "timezone": "America/Los_Angeles",
+    "joinedAt": "2026-01-12T17:00:00Z",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "messages": [
+   {
+    "id": "M-001",
+    "channelId": "C-002",
+    "author": "U-002",
+    "text": "Nightly dev eval run: 14 suites green, 1 red (search-freshness, 62% vs 91% yesterday).",
+    "createdAt": "2026-01-18T08:00:00Z",
+    "updatedAt": "2026-01-18T08:00:00Z"
+   },
+   {
+    "id": "M-002",
+    "channelId": "C-001",
+    "author": "U-001",
+    "text": "Reminder: project updates are due Thursday. DEMO-104 is still blocked on the time zone fix.",
+    "createdAt": "2026-01-17T18:00:00Z",
+    "updatedAt": "2026-01-17T18:00:00Z"
+   },
+   {
+    "id": "M-003",
+    "channelId": "C-001",
+    "author": "U-003",
+    "text": "For data on dashboard usage, Sam Rivera is the right person to ask.",
+    "createdAt": "2026-01-17T18:05:00Z",
+    "updatedAt": "2026-01-17T18:05:00Z"
+   }
+  ],
+  "pages": [
+   {
+    "id": "PG-001",
+    "title": "Team planning page",
+    "createdBy": "U-001",
+    "lastEditedAt": "2026-01-12T17:00:00Z",
+    "shared": true,
+    "permissions": "view",
+    "content": [
+     {
+      "id": "b1",
+      "type": "paragraph",
+      "content": "Focus this quarter: finish the platform migration, fix the four open migration bugs, then start Project B. Not in focus: new dashboard features."
+     }
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "PG-002",
+    "title": "Analytics feature memo review",
+    "createdBy": "U-003",
+    "lastEditedAt": "2026-01-12T17:00:00Z",
+    "shared": true,
+    "permissions": "view",
+    "content": [
+     {
+      "id": "b1",
+      "type": "paragraph",
+      "content": "Draft memo: add export and weekly trends to the usage dashboard. Open question: who owns the data pipeline."
+     }
+    ],
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "databases": [
+   {
+    "id": "DB-001",
+    "name": "Support list",
+    "createdBy": "U-001",
+    "viewType": "table",
+    "shared": true,
+    "permissions": "view",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ],
+  "db_records": [
+   {
+    "id": "REC-101",
+    "databaseId": "DB-001",
+    "title": "DEMO-101 Search results miss newly added articles",
+    "status": "Engineering scoping",
+    "owner": "Sam Rivera",
+    "priority": "P1",
+    "severity": "High",
+    "category": "Knowledge",
+    "contact": "Acme Corp",
+    "dueDate": "2026-01-20",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   },
+   {
+    "id": "REC-104",
+    "databaseId": "DB-001",
+    "title": "DEMO-104 Scheduled digest arrives an hour late",
+    "status": "Waiting on fix",
+    "owner": "Sam Rivera",
+    "priority": "P0",
+    "severity": "Critical",
+    "category": "Scheduling",
+    "contact": "Northwind",
+    "dueDate": "2026-01-18",
+    "createdAt": "2026-01-12T17:00:00Z",
+    "updatedAt": "2026-01-12T17:00:00Z"
+   }
+  ]
+ }
+}

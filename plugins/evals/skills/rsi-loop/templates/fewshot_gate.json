@@ -1,0 +1,288 @@
+{
+ "_note": "Few-shot examples for the sensitivity gate. Every utterance here is invented. To add corrected examples, copy this file to <work>/fewshot_gate.json and edit the copy; never paste a real utterance into it.",
+ "examples": [
+  {
+   "context": [],
+   "utterance": "what's the latest on the Globex escalation? Priya said eng committed to a date",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [
+     "Globex",
+     "Priya"
+    ],
+    "task": "Where does the product escalation for Acme Corp stand? I was told engineering has committed to a date.",
+    "success_criteria": "Finds the open escalation for the named customer and reports its current stage and any committed date, or says plainly that none is recorded.",
+    "placeholders": [
+     {
+      "value": "Acme Corp",
+      "kind": "customer"
+     }
+    ],
+    "runtime_data": "customer"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "Globex is threatening to churn over the $1.2M renewal because of the SSO outage on Oct 3, draft a reply to their CIO",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "customer_confidential",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "summarize what I have on my calendar tomorrow and who I'm meeting",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [],
+    "task": "Give me a rundown of tomorrow's meetings and the people in each one.",
+    "success_criteria": "Lists tomorrow's meetings for the requester in time order with attendees, or says plainly that the calendar is not connected.",
+    "placeholders": [],
+    "runtime_data": "calendar_mail"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "prep me for my 2pm with Dana, last time we talked about her promotion case and the reorg, here are my notes: she's frustrated about comp...",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "private_calendar_hr",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "help me write feedback for Sam's performance review, he missed the Q3 goals",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "private_calendar_hr",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "use this token to call the API: tok-EXAMPLE-0000 and tell me what comes back",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "credentials",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "call Dana on her cell 415-555-0137 or email dana.r@example.com, which one is on file?",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "pii",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [
+    "what projects are in planning for the search team"
+   ],
+   "utterance": "ok which of those have no target date",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [],
+    "task": "Of the search team's projects that are in planning, which ones are missing a target date?",
+    "success_criteria": "Lists the planning-stage projects for that team that have no target date set, with a link to each.",
+    "placeholders": [
+     {
+      "value": "search team",
+      "kind": "team"
+     }
+    ],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "thanks!",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "not_a_task",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "[Routine run] Every weekday at 8am: check PROJ-4412 and PROJ-4418, and post a status summary for Marco Diaz's team to #team-bluebird-leads",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [
+     "PROJ-4412",
+     "PROJ-4418",
+     "Marco Diaz",
+     "#team-bluebird-leads",
+     "bluebird"
+    ],
+    "task": "[Routine run] Each weekday morning, look at issues DEMO-101 and DEMO-102 and write a short status summary for Jordan Lee's team.",
+    "success_criteria": "Reads both issues and produces a short status summary covering state, owner and any blocker for each.",
+    "placeholders": [
+     {
+      "value": "DEMO-101",
+      "kind": "issue_id"
+     },
+     {
+      "value": "DEMO-102",
+      "kind": "issue_id"
+     },
+     {
+      "value": "Jordan Lee",
+      "kind": "person"
+     }
+    ],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "how do I move a roadmap item from Planning to Development? what fields are required",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [],
+    "task": "What are the steps to take a roadmap item from Planning into Development, and which fields does it need?",
+    "success_criteria": "Explains the steps and the required fields for that stage change, citing the process documentation.",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "[Routine run] This is an automated execution of the saved routine 'Morning brief'. Run the morning-brief skill for me now. Deliver only to me (Priya Raman, U02ABCDEF12) by DM. News sources: emails from news@initech.example and #initech-announcements.\n---\nFormatting rules for your reply: ...",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [
+     "Priya Raman",
+     "U02ABCDEF12",
+     "news@initech.example",
+     "#initech-announcements",
+     "initech"
+    ],
+    "task": "[Routine run] Scheduled execution of my saved 'Morning brief' routine: use the morning-brief skill and DM the result to me only. News comes from the company news emails and the company announcements channel.",
+    "success_criteria": "Produces the brief in the routine's format from the requester's own sources and addresses it only to the requester.",
+    "placeholders": [],
+    "runtime_data": "calendar_mail"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "Publish the approved status update below to the initiative \"Project Nightjar: Tenant Cutover\" and set health to At Risk.\n\nApproved body:\nCutover slipped two weeks. Blocker: the identity sync rewrite. Three enterprise tenants moved to January. Asking for two more engineers...",
+   "output": {
+    "decision": "keep",
+    "drop_reason": "none",
+    "removed_terms": [
+     "Project Nightjar",
+     "Nightjar",
+     "Tenant Cutover",
+     "identity sync rewrite"
+    ],
+    "task": "Post the approved status update below on the Linear initiative DEMO-101 (the platform migration initiative) and mark its health At Risk. Carry it out; do not write another draft.\n\nApproved body:\nProgress this week was slower than planned. One dependency is blocked and the target date moves out. Next step is to confirm staffing.",
+    "success_criteria": "Posts the given body as a status update on the named initiative, sets health to At Risk, and confirms what was posted without creating a duplicate.",
+    "placeholders": [
+     {
+      "value": "DEMO-101",
+      "kind": "issue_id"
+     }
+    ],
+    "runtime_data": "none"
+   }
+  },
+  {
+   "context": [],
+   "utterance": "here's the full memo on our FY pricing changes and the leadership reorg, turn it into talking points: [long pasted internal memo]",
+   "output": {
+    "decision": "drop",
+    "drop_reason": "internal_confidential",
+    "removed_terms": [],
+    "task": "",
+    "success_criteria": "",
+    "placeholders": [],
+    "runtime_data": "none"
+   }
+  }
+ ],
+ "verify_examples": [
+  {
+   "task": "What's the latest on the product escalation for Acme Corp?",
+   "clean": true,
+   "issue": "none"
+  },
+  {
+   "task": "Summarize the open issues assigned to Jordan Lee's team.",
+   "clean": true,
+   "issue": "none"
+  },
+  {
+   "task": "Draft a reply to the customer about their $1.2M renewal and the October outage.",
+   "clean": false,
+   "issue": "customer_confidential"
+  },
+  {
+   "task": "What did Priya Raman say about Project Nightjar in #leads-private?",
+   "clean": false,
+   "issue": "real_identifier"
+  },
+  {
+   "task": "Prep me for my 1:1 with Jordan Lee; last time we discussed her promotion case and that she is unhappy about pay.",
+   "clean": false,
+   "issue": "private_calendar_hr"
+  },
+  {
+   "task": "What is on my calendar tomorrow?",
+   "clean": true,
+   "issue": "none"
+  },
+  {
+   "task": "Post the status update to the initiative \"Project Nightjar: Tenant Cutover\" and set health to At Risk.",
+   "carried_phrases": [
+    "Project Nightjar",
+    "At Risk"
+   ],
+   "clean": false,
+   "issue": "real_identifier"
+  },
+  {
+   "task": "[Routine run] Saved routine 'Daily Brief'. List my issues that are In Progress or At Risk.",
+   "carried_phrases": [
+    "Daily Brief",
+    "In Progress",
+    "At Risk"
+   ],
+   "clean": true,
+   "issue": "none"
+  }
+ ]
+}
